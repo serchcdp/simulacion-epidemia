@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulación de Epidemia</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      grid-template-rows: repeat(10, 40px);
+      gap: 3px;
+      margin: 20px auto;
+      width: max-content;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      background: white;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background-color: green;
+      transition: background-color 0.3s ease;
+    }
+    button {
+      margin: 10px 8px;
+      padding: 10px 20px;
+      font-size: 15px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #3b82f6;
+      color: white;
+      box-shadow: 0 3px 6px rgba(59,130,246,0.4);
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #2563eb;
+      box-shadow: 0 4px 10px rgba(37,99,235,0.6);
+    }
+    #estadisticas {
+      margin-top: 20px;
+      font-size: 20px;
+      color: #333;
+      font-weight: 600;
+    }
+
+    /* Modal Background */
+    #modalLoginBackground {
+      display: none;
+      position: fixed;
+      top:0; left:0; right:0; bottom:0;
+      background: rgba(0,0,0,0.4);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+    /* Modal Box */
+    #loginForm {
+      background: white;
+      padding: 25px 30px;
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      width: 320px;
+      box-sizing: border-box;
+      text-align: left;
+      position: relative;
+    }
+    #loginForm h2 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-weight: 700;
+      color: #222;
+      text-align: center;
+    }
+    #loginForm input {
+      width: 100%;
+      padding: 10px 12px;
+      margin: 8px 0 15px;
+      border-radius: 5px;
+      border: 1.5px solid #ccc;
+      font-size: 14px;
+      box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+    #loginForm input:focus {
+      border-color: #3b82f6;
+      outline: none;
+    }
+    #loginForm button {
+      width: 100%;
+      margin: 0;
+      background-color: #10b981;
+      box-shadow: 0 3px 8px rgba(16,185,129,0.5);
+    }
+    #loginForm button:hover {
+      background-color: #059669;
+      box-shadow: 0 4px 10px rgba(5,150,105,0.7);
+    }
+    #loginCloseBtn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      background: transparent;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      color: #999;
+      transition: color 0.3s ease;
+    }
+    #loginCloseBtn:hover {
+      color: #555;
+    }
+
+    /* Tabla historial */
+    #tablaHistorial {
+      margin: 30px auto;
+      max-width: 600px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      padding: 20px;
+      text-align: center;
+    }
+    #tablaHistorial h3 {
+      margin-top: 0;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 15px;
+    }
+    #tablaHistorial table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      user-select: text;
+    }
+    #tablaHistorial th, #tablaHistorial td {
+      padding: 10px 8px;
+      border: 1px solid #ddd;
+    }
+    #tablaHistorial th {
+      background-color: #3b82f6;
+      color: white;
+      font-weight: 600;
+    }
+    #tablaHistorial tbody tr:hover {
+      background-color: #e0f2fe;
+    }
+    #tablaHistorial div {
+      margin-bottom: 15px;
+    }
+    #tablaHistorial button {
+      background-color: #2563eb;
+      box-shadow: 0 3px 8px rgba(37,99,235,0.5);
+      margin: 0 5px;
+      font-size: 14px;
+      padding: 8px 15px;
+      border-radius: 5px;
+    }
+    #tablaHistorial button:hover {
+      background-color: #1e40af;
+      box-shadow: 0 4px 10px rgba(30,64,175,0.7);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Simulación de Epidemia</h1>
+
+  <div id="grid"></div>
+
+  <div style="margin-top: 20px;">
+    <button onclick="startSimulation()">Iniciar Simulación</button>
+    <button onclick="reiniciarSimulacion()">Reiniciar</button>
+    <button onclick="abrirModalLogin()">🔐 Ver historial privado</button>
+    <button id="btnBorrarHistorial" onclick="borrarHistorial()" style="display:none;">🗑️ Borrar Historial</button>
+  </div>
+
+  <div id="estadisticas">
+    Sano: 100 | Infectado: 0 | Recuperado: 0 | Muerto: 0
+  </div>
+
+  <!-- Modal fondo -->
+  <div id="modalLoginBackground" onclick="cerrarModalLogin()">
+    <!-- Evitar cierre si clic dentro del modal -->
+    <div id="loginForm" onclick="event.stopPropagation()">
+      <button id="loginCloseBtn" onclick="cerrarModalLogin()" title="Cerrar">&times;</button>
+      <h2>Login</h2>
+      <input type="text" id="usuario" placeholder="Usuario" autocomplete="username" />
+      <input type="password" id="contrasena" placeholder="Contraseña" autocomplete="current-password" />
+      <button onclick="verificarCredenciales()">Entrar</button>
+    </div>
+  </div>
+
+  <div id="tablaHistorial" style="display:none;">
+    <h3>Historial completo</h3>
+    <div>
+      <button onclick="actualizarHistorial()">🔄 Actualizar historial</button>
+      <button onclick="ocultarHistorial()">🙈 Ocultar historial</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Fecha</th>
+          <th>Sano</th>
+          <th>Infectado total</th>
+          <th>Recuperado</th>
+          <th>Muerto</th>
+        </tr>
+      </thead>
+      <tbody id="tablaCuerpo"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const estados = {
+      SANO: 'green',
+      INFECTADO: 'red',
+      RECUPERADO: 'blue',
+      MUERTO: 'black'
+    };
+
+    const grid = document.getElementById('grid');
+    const celdas = [];
+    let totalInfectados = 0;
+
+    for (let i = 0; i < 10; i++) {
+      celdas[i] = [];
+      for (let j = 0; j < 10; j++) {
+        const celda = document.createElement('div');
+        celda.classList.add('cell');
+        celda.dataset.estado = 'SANO';
+        grid.appendChild(celda);
+        celdas[i][j] = celda;
+      }
+    }
+
+    function actualizarEstadisticas() {
+      let conteo = { SANO: 0, INFECTADO: 0, RECUPERADO: 0, MUERTO: 0 };
+      for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 10; j++) {
+          const estado = celdas[i][j].dataset.estado;
+          conteo[estado]++;
+        }
+      }
+      document.getElementById("estadisticas").textContent =
+        `Sano: ${conteo.SANO} | Infectado: ${conteo.INFECTADO} | Recuperado: ${conteo.RECUPERADO} | Muerto: ${conteo.MUERTO}`;
+    }
+
+    function infectarCelda(i, j) {
+      const celda = celdas[i][j];
+      if (!celda || celda.dataset.estado !== 'SANO') return;
+      celda.dataset.estado = 'INFECTADO';
+      celda.style.backgroundColor = estados.INFECTADO;
+      totalInfectados++;
+      actualizarEstadisticas();
+
+      setTimeout(() => {
+        if (Math.random() < 0.7) {
+          celda.dataset.estado = 'RECUPERADO';
+          celda.style.backgroundColor = estados.RECUPERADO;
+        } else {
+          celda.dataset.estado = 'MUERTO';
+          celda.style.backgroundColor = estados.MUERTO;
+        }
+        actualizarEstadisticas();
+      }, 3000);
+
+      setTimeout(() => {
+        contagiarVecinos(i, j);
+      }, 1000);
+    }
+
+    function contagiarVecinos(i, j) {
+      const direcciones = [[-1,0],[1,0],[0,-1],[0,1]];
+      direcciones.forEach(([dx,dy])=>{
+        const ni = i + dx;
+        const nj = j + dy;
+        if (ni >= 0 && ni < 10 && nj >= 0 && nj < 10) {
+          if (celdas[ni][nj].dataset.estado === 'SANO') {
+            if (Math.random() < 0.5) {
+              infectarCelda(ni, nj);
+            }
+          }
+        }
+      });
+    }
+
+    function iniciarEstadoInicial() {
+      const x = Math.floor(Math.random() * 10);
+      const y = Math.floor(Math.random() * 10);
+      infectarCelda(x, y);
+    }
+
+    function reiniciarSimulacion() {
+      for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 10; j++) {
+          celdas[i][j].dataset.estado = 'SANO';
+          celdas[i][j].style.backgroundColor = estados.SANO;
+        }
+      }
+      actualizarEstadisticas();
+    }
+
+    function startSimulation() {
+      totalInfectados = 0;
+      reiniciarSimulacion();
+      iniciarEstadoInicial();
+      esperarFinSimulacion();
+    }
+
+    function esperarFinSimulacion() {
+      const intervalo = setInterval(() => {
+        const hayInfectados = Array.from(document.querySelectorAll('.cell')).some(
+          celda => celda.dataset.estado === 'INFECTADO'
+        );
+        if (!hayInfectados) {
+          clearInterval(intervalo);
+          guardarResultado();
+        }
+      }, 1000);
+    }
+
+    function guardarResultado() {
+      let conteo = {
+        sano: 0,
+        infectadoActual: 0,
+        recuperado: 0,
+        muerto: 0
+      };
+
+      for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 10; j++) {
+          let estado = celdas[i][j].dataset.estado;
+          if (estado === 'SANO') conteo.sano++;
+          if (estado === 'INFECTADO') conteo.infectadoActual++;
+          if (estado === 'RECUPERADO') conteo.recuperado++;
+          if (estado === 'MUERTO') conteo.muerto++;
+        }
+      }
+
+      const fecha = new Date().toLocaleString();
+      const resultado = { 
+        fecha, 
+        sano: conteo.sano,
+        infectadoTotal: totalInfectados,
+        infectadoActual: conteo.infectadoActual,
+        recuperado: conteo.recuperado,
+        muerto: conteo.muerto
+      };
+
+      let historial = JSON.parse(localStorage.getItem("historialEpidemia")) || [];
+      historial.push(resultado);
+      localStorage.setItem("historialEpidemia", JSON.stringify(historial));
+    }
+
+    // Modal login
+
+    function abrirModalLogin() {
+      document.getElementById('modalLoginBackground').style.display = 'flex';
+      document.getElementById('usuario').value = '';
+      document.getElementById('contrasena').value = '';
+    }
+    function cerrarModalLogin() {
+      document.getElementById('modalLoginBackground').style.display = 'none';
+    }
+
+    function verificarCredenciales() {
+      const user = document.getElementById('usuario').value;
+      const pass = document.getElementById('contrasena').value;
+      const usuarioValido = "serchadmin";
+      const contrasenaValida = "contraseñaxd";
+
+      if (user === usuarioValido && pass === contrasenaValida) {
+        cerrarModalLogin();
+        document.getElementById('btnBorrarHistorial').style.display = 'inline-block';
+        mostrarTablaHistorial();
+      } else {
+        alert("Usuario o contraseña incorrectos");
+      }
+    }
+
+    // Mostrar y manejar historial
+
+    function mostrarTablaHistorial() {
+      const historial = JSON.parse(localStorage.getItem("historialEpidemia")) || [];
+      const cuerpo = document.getElementById('tablaCuerpo');
+      cuerpo.innerHTML = '';
+      document.getElementById('tablaHistorial').style.display = 'block';
+
+      historial.slice().reverse().forEach((item, index) => {
+        const fila = document.createElement('tr');
+        fila.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${item.fecha}</td>
+          <td>${item.sano}</td>
+          <td>${item.infectadoTotal !== undefined ? item.infectadoTotal : '-'}</td>
+          <td>${item.recuperado}</td>
+          <td>${item.muerto}</td>
+        `;
+        cuerpo.appendChild(fila);
+      });
+    }
+
+    function borrarHistorial() {
+      localStorage.removeItem("historialEpidemia");
+      mostrarTablaHistorial();
+      alert("Historial de simulaciones borrado.");
+    }
+
+    function actualizarHistorial() {
+      mostrarTablaHistorial();
+    }
+
+    function ocultarHistorial() {
+      document.getElementById('tablaHistorial').style.display = 'none';
+      document.getElementById('btnBorrarHistorial').style.display = 'none';
+    }
+  </script>
+
+</body>
+</html>
+
+
