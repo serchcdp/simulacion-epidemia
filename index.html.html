@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulación de Epidemia</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f0f2f5;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: green;
+      transition: background-color 0.3s;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      grid-template-rows: repeat(10, 40px);
+      gap: 3px;
+      margin: 20px auto;
+      width: max-content;
+      padding: 10px;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px 8px;
+      border: none;
+      border-radius: 5px;
+      background-color: #3b82f6;
+      color: white;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    button:hover {
+      background-color: #2563eb;
+    }
+    #tablaHistorial {
+      display: none;
+      margin: 30px auto;
+      max-width: 600px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      padding: 20px;
+      text-align: center;
+    }
+    #tablaHistorial table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #tablaHistorial th, #tablaHistorial td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    #tablaHistorial th {
+      background-color: #3b82f6;
+      color: white;
+    }
+    #tablaHistorial tbody tr:hover {
+      background-color: #e0f2fe;
+    }
+    /* Botones en resultados */
+    #tablaHistorial div.botonesResultados {
+      margin-top: 15px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body onload="inicializarSesion()">
+  <div style="text-align:center; margin-top: 100px;" id="loginContainer">
+    <h2>Iniciar Sesión</h2>
+    <input type="text" id="usuarioInicio" placeholder="Usuario"><br>
+    <input type="password" id="contrasenaInicio" placeholder="Contraseña"><br>
+    <button onclick="iniciarSesion()">Iniciar Sesión</button>
+    <button onclick="registrarNuevoUsuario()">Registrarse</button>
+  </div>
+
+  <div id="contenedorSimulacion" style="display:none; text-align: center;">
+    <h1>Simulación de Epidemia</h1>
+    <div id="grid"></div>
+    <div>
+      <button onclick="startSimulation()">Iniciar Simulación</button>
+      <button onclick="reiniciarSimulacion()">Reiniciar</button>
+      <button onclick="mostrarResultados()">📊 Mostrar Resultados</button>
+      <button onclick="cerrarSesion()">🚪 Cerrar Sesión</button>
+    </div>
+    <div id="estadisticas">
+      Sano: 100 | Infectado: 0 | Recuperado: 0 | Muerto: 0
+    </div>
+    <div id="tablaHistorial">
+      <h3>Historial de Simulaciones</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Sano</th>
+            <th>Infectado</th>
+            <th>Recuperado</th>
+            <th>Muerto</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpoHistorial"></tbody>
+      </table>
+      <div class="botonesResultados">
+        <button onclick="actualizarResultados()">Actualizar Resultados</button>
+        <button onclick="borrarRegistros()">Borrar Todos los Registros</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+let celdas = [], totalInfectados = 0;
+const estados = {
+  SANO: 'green',
+  INFECTADO: 'red',
+  RECUPERADO: 'blue',
+  MUERTO: 'black'
+};
+
+function inicializarSesion() {
+  if (localStorage.getItem("usuarioActivo")) {
+    document.getElementById("loginContainer").style.display = "none";
+    document.getElementById("contenedorSimulacion").style.display = "block";
+    inicializarGrid();
+  }
+}
+
+function iniciarSesion() {
+  const user = document.getElementById("usuarioInicio").value;
+  const pass = document.getElementById("contrasenaInicio").value;
+  const usuarios = JSON.parse(localStorage.getItem("usuariosEpidemia")) || {};
+  if (usuarios[user] && usuarios[user] === pass) {
+    localStorage.setItem("usuarioActivo", user);
+    location.reload();
+  } else {
+    alert("Credenciales incorrectas");
+  }
+}
+
+function registrarNuevoUsuario() {
+  const user = prompt("Nuevo usuario:");
+  const pass = prompt("Nueva contraseña:");
+  if (!user || !pass) return;
+  let usuarios = JSON.parse(localStorage.getItem("usuariosEpidemia")) || {};
+  if (usuarios[user]) return alert("Ya existe el usuario");
+  usuarios[user] = pass;
+  localStorage.setItem("usuariosEpidemia", JSON.stringify(usuarios));
+  alert("Usuario registrado correctamente");
+}
+
+function cerrarSesion() {
+  localStorage.removeItem("usuarioActivo");
+  location.reload();
+}
+
+function inicializarGrid() {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  celdas = [];
+  for (let i = 0; i < 10; i++) {
+    celdas[i] = [];
+    for (let j = 0; j < 10; j++) {
+      const celda = document.createElement("div");
+      celda.classList.add("cell");
+      celda.dataset.estado = "SANO";
+      celda.style.backgroundColor = estados.SANO;
+      grid.appendChild(celda);
+      celdas[i][j] = celda;
+    }
+  }
+  actualizarEstadisticas();
+}
+
+function startSimulation() {
+  reiniciarSimulacion();
+  totalInfectados = 0;
+  const x = Math.floor(Math.random() * 10);
+  const y = Math.floor(Math.random() * 10);
+  infectarCelda(x, y);
+  esperarFinSimulacion();
+}
+
+function reiniciarSimulacion() {
+  for (let i = 0; i < 10; i++) {
+    for (let j = 0; j < 10; j++) {
+      celdas[i][j].dataset.estado = "SANO";
+      celdas[i][j].style.backgroundColor = estados.SANO;
+    }
+  }
+  actualizarEstadisticas();
+}
+
+function infectarCelda(i, j) {
+  const celda = celdas[i][j];
+  if (!celda || celda.dataset.estado !== 'SANO') return;
+  celda.dataset.estado = 'INFECTADO';
+  celda.style.backgroundColor = estados.INFECTADO;
+  totalInfectados++;
+  actualizarEstadisticas();
+  setTimeout(() => {
+    celda.dataset.estado = Math.random() < 0.7 ? 'RECUPERADO' : 'MUERTO';
+    celda.style.backgroundColor = estados[celda.dataset.estado];
+    actualizarEstadisticas();
+  }, 3000);
+  setTimeout(() => contagiarVecinos(i, j), 1000);
+}
+
+function contagiarVecinos(i, j) {
+  [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx, dy]) => {
+    const ni = i + dx, nj = j + dy;
+    if (ni >= 0 && ni < 10 && nj >= 0 && nj < 10 && celdas[ni][nj].dataset.estado === 'SANO') {
+      if (Math.random() < 0.5) infectarCelda(ni, nj);
+    }
+  });
+}
+
+function actualizarEstadisticas() {
+  const conteo = { SANO: 0, INFECTADO: 0, RECUPERADO: 0, MUERTO: 0 };
+  for (let i = 0; i < 10; i++) {
+    for (let j = 0; j < 10; j++) {
+      conteo[celdas[i][j].dataset.estado]++;
+    }
+  }
+  document.getElementById("estadisticas").textContent =
+    `Sano: ${conteo.SANO} | Infectado: ${conteo.INFECTADO} | Recuperado: ${conteo.RECUPERADO} | Muerto: ${conteo.MUERTO}`;
+}
+
+function esperarFinSimulacion() {
+  const interval = setInterval(() => {
+    const infectados = Array.from(document.querySelectorAll('.cell'))
+      .some(c => c.dataset.estado === 'INFECTADO');
+    if (!infectados) {
+      clearInterval(interval);
+      guardarResultado();
+    }
+  }, 1000);
+}
+
+function guardarResultado() {
+  const conteo = { sano: 0, infectado: 0, recuperado: 0, muerto: 0 };
+  for (let i = 0; i < 10; i++) {
+    for (let j = 0; j < 10; j++) {
+      const estado = celdas[i][j].dataset.estado;
+      if (estado === 'SANO') conteo.sano++;
+      if (estado === 'INFECTADO') conteo.infectado++;
+      if (estado === 'RECUPERADO') conteo.recuperado++;
+      if (estado === 'MUERTO') conteo.muerto++;
+    }
+  }
+  const resultado = {
+    fecha: new Date().toLocaleString(),
+    sano: conteo.sano,
+    infectadoTotal: totalInfectados,
+    recuperado: conteo.recuperado,
+    muerto: conteo.muerto
+  };
+  const historial = JSON.parse(localStorage.getItem("historialEpidemia")) || [];
+  historial.push(resultado);
+  localStorage.setItem("historialEpidemia", JSON.stringify(historial));
+}
+
+function actualizarResultados() {
+  const historial = JSON.parse(localStorage.getItem("historialEpidemia")) || [];
+  const cuerpo = document.getElementById("cuerpoHistorial");
+  cuerpo.innerHTML = "";
+  historial.forEach((r, idx) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${r.fecha}</td>
+      <td>${r.sano}</td>
+      <td>${r.infectadoTotal}</td>
+      <td>${r.recuperado}</td>
+      <td>${r.muerto}</td>`;
+    cuerpo.appendChild(row);
+  });
+}
+
+function borrarRegistros() {
+  if (confirm("¿Estás seguro que quieres borrar todos los registros?")) {
+    localStorage.removeItem("historialEpidemia");
+    actualizarResultados();
+  }
+}
+
+function mostrarResultados() {
+  actualizarResultados();
+  document.getElementById("tablaHistorial").style.display = "block";
+}
+</script>
+</body>
+</html>
